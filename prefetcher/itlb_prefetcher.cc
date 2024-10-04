@@ -15,8 +15,6 @@ void CACHE::itlb_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way
 
 }
 
-
-
 void CACHE::itlb_prefetcher_final_stats()
 {
 
