@@ -8,7 +8,7 @@
 // ------------ YOU CAN CHANGE THE IP_TABLE FOR YOU DESIGN ---------------- //
 
 #define MIN_STATE_REQ 2
-#define NUM_STRIDE_TABLE_ENTRIES 1024
+#define NUM_STRIDE_TABLE_ENTRIES 4096
 
 class IP_TABLE {
   public:
@@ -67,7 +67,7 @@ uint64_t present_time = 0;
 // ------------------------- Updating the signature ---------------------------- // 
 uint16_t update_sig_l1(uint16_t old_sig, int delta) {                           
     
-    return (old_sig << 1 )^delta;
+    return (old_sig << 2 )^delta;
 }
 
 // ------------------- Updating confidence for the CPLX class ------------------ // 
@@ -89,7 +89,7 @@ void update_state(STRIDE_TABLE*entry,uint64_t stride) {
 
     entry->state = conf;
 
-    if(entry->stride == 0)
+    if(entry->state == 0)
         entry->stride = stride;
 
 }
@@ -173,7 +173,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
 
         for( int j = 1 ; j <= PREFETCH_DEGREE ; j++){
 
-            uint64_t pf_addr = ( cl_addr + j*stride)<<LOG2_BLOCK_SIZE;
+            uint64_t pf_addr = ( cl_addr + j*stride )<<LOG2_BLOCK_SIZE;
 
             // only issue a prefetch if the prefetch address is in the same 4 KB page
             // as the current demand access address

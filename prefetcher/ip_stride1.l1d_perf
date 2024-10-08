@@ -7,36 +7,33 @@
 
 #define MIN_STATE_REQ 2
 
-class IP_TRACKER {
+class IP_TABLE {
   public:
     // ------------------------- Define the IP_TRACKER class here ------------------------- //
     uint64_t ip;
     uint64_t cl_addr;
     uint64_t stride;
     uint64_t state;
-    uint64_t last_time;
 
-    IP_TRACKER () {
+    IP_TABLE () {
         ip = 0;
         cl_addr = 0;
         stride = 0;
         state= 0;
-        last_time = 0;
     };
 
-    void reinitialize(uint64_t ip_tag , uint64_t t){
+    void reinitialize(uint64_t ip_tag ){
         ip = ip_tag;
         cl_addr = 0;
         stride = 0;
         state = 0;
-        last_time = t;
         
     }
 
 };
 
 
-IP_TRACKER trackers_table[IP_TRACKER_COUNT];
+IP_TABLE trackers_table[IP_TRACKER_COUNT];
 uint64_t present_time = 0;
 
 
@@ -48,7 +45,7 @@ void CACHE::l1d_prefetcher_initialize()
 }
 
 
-void update_state(IP_TRACKER*entry,uint64_t stride) {
+void update_state(IP_TABLE*entry,uint64_t stride) {
 
     uint16_t conf = entry->state;
 
@@ -71,27 +68,16 @@ void update_state(IP_TRACKER*entry,uint64_t stride) {
 
 }
 
-IP_TRACKER* find_tracker(uint64_t ip){
+IP_TABLE* find_tracker(uint64_t ip){
 
-    uint64_t min_time = trackers_table[0].last_time;
-    IP_TRACKER*tracker = trackers_table ;
 
     for( int i = 0 ; i < IP_TRACKER_COUNT ; i++ ){
-
         if( ip == trackers_table[i].ip){
-            trackers_table[i].last_time = present_time;
             return trackers_table + i;
         }
-
-        if( min_time > trackers_table[i].last_time){
-            tracker = trackers_table + i;
-            min_time = trackers_table[i].last_time;
-        }
-
     }
 
-    tracker->reinitialize(ip,present_time);
-    return tracker;
+    return trackers_table;
 }
 
 
@@ -99,9 +85,8 @@ IP_TRACKER* find_tracker(uint64_t ip){
 // --------------- This is the main prefetcher operate function ---------------- // 
 void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint8_t critical_ip_flag)
 {
-    present_time++;
 
-    IP_TRACKER*tracker = find_tracker(ip);
+    IP_TABLE*tracker = find_tracker(ip);
 
     uint64_t cl_addr = addr >> LOG2_BLOCK_SIZE;
     uint64_t stride = cl_addr - tracker->cl_addr;
@@ -145,5 +130,3 @@ void CACHE::l1d_prefetcher_final_stats()
 	cout << "Degree: " << PREFETCH_DEGREE << endl;
 }
 // ------------------------- DO NOT CHANGE -------------------------------- //
-
-
