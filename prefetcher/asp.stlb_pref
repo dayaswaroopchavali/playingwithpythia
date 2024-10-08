@@ -5,21 +5,19 @@
 // ------------------------- DO NOT CHANGE -------------------------------- //
 
 #define PREFETCH_DEGREE 5             // Prefetch degree - you need to vary this!
+#define MIN_STATE_REQ 2               // state at which it starts prefetching 
 
 class IP_TRACKER {
   public:
     // ------------------------- Define the IP_TRACKER class here ------------------------- //
     uint64_t ip;
-    uint64_t addr;
+    uint64_t page_addr;
     uint64_t stride;
     uint64_t state;
     int last_time;
 };
 
 IP_TRACKER trackers[IP_TRACKER_COUNT];
-
-#define MIN_STATE_REQ 2
-
 int present_time = 0;
 
 // ------------------------- Initialize the prefetcher ------------------------- // 
@@ -30,6 +28,7 @@ void CACHE::stlb_prefetcher_initialize()
 }
 
 void improve_state(IP_TRACKER*t){
+    
     t->state++;
 
     if(t->state >= MIN_STATE_REQ){
@@ -45,7 +44,31 @@ void decrease_state(IP_TRACKER*t){
     }
 }
 
-void intialisze_tracker()
+void intialisze_tracker(IP_TRACKER*t,uint64_t ip){
+
+    t->ip = ip;
+    t->page_addr = 0;
+    t->stride = 0;
+    t->state = 0;
+    t->time = present_time;
+
+}
+
+IP_TRACKER*find_entry(){
+
+    int min_index = 0;
+    int min_time = trackers[0].last_time;
+
+    for (int i = 0 ;i < IP_TRACKER_COUNT ; i++){
+        if (trackers[i].last_time < min_time ){
+            min_index = i;
+            min_time = trackers[i].last_time;
+        }
+    }
+
+    return trackers+min_index;
+
+}
 
 
 // --------------- This is the main prefetcher operate function ---------------- // 
@@ -53,8 +76,13 @@ void CACHE::stlb_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hi
 {
     // ------------------------ Add Arbitrary Stride pf_address logic here ----------------------- // 
 
-    // prefetch_translation(ip, pf_address, (int)2, 0, prefetch_id, instruction);
+    
 
+    present_time++;
+
+    if ( cache_hit){
+        return;
+    }
     
     IP_TRACKER*present_tracker;
 
@@ -67,13 +95,15 @@ void CACHE::stlb_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hi
     }
 
     if( i == IP_TRACKER_COUNT){
-        present_tracker = find_entry(trackers);
-        intialisze_tracker(present_tracker);
+        present_tracker = find_entry();
+        intialisze_tracker(present_tracker,ip);
     }
+
+    uint64_t page_addr = (addr)>>LOG2_PAGE_SIZE ; // page address
 
     if ( index != IP_TRACKER_COUNT ){
 
-        if( present_tracker->stride == ( addr - present_tracker->addr ) ){
+        if( present_tracker->stride == ( page_addr - present_tracker->page_addr ) ){  // stride is cache Line distance between 2 adddress
             improve_state(present_tracker);
         }
         else{
@@ -81,19 +111,17 @@ void CACHE::stlb_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hi
         }
 
         if( present_tracker->state >= 2){
-
-            uint64_t pf_address = (addr + present_tracker->stride ) << LOG2_BLOCK_SIZE;
-
-            // only issue a prefetch if the prefetch address is in the same 4 KB page
-            // as the current demand access address
-
-            if ((pf_address >> LOG2_PAGE_SIZE) != (addr >> LOG2_PAGE_SIZE))
-                return;
             
-            prefetch_line(ip,addr ,pf_address , FILL_L1 , 0);
-        
+            uint64_t pf_address = (page_addr + present_tracker->stride ) << LOG2_PAGE_SIZE;
+            prefetch_translation(ip, pf_address, (int)2, 0, prefetch_id, 0);
+
         }
 
+        // Update the the find_entry
+
+        present_tracker->stride = page_addr - present_tracker->page_addr;
+        present_tracker->page_addr = page_addr;
+        present_tracker->last_time = present_time;
 
     }
     
