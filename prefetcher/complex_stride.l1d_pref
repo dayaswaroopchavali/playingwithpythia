@@ -7,7 +7,7 @@
 
 // ------------ YOU CAN CHANGE THE IP_TABLE FOR YOU DESIGN ---------------- //
 
-#define MIN_STATE_REQ 2
+#define MIN_STATE_REQ 1
 #define NUM_STRIDE_TABLE_ENTRIES 4096
 
 class IP_TABLE {
@@ -39,7 +39,7 @@ class STRIDE_TABLE {
     public:
         uint16_t signature;
         uint64_t stride;
-        uint16_t state;
+        uint64_t state;
         uint64_t last_time;
 
     
@@ -64,16 +64,20 @@ STRIDE_TABLE stride_table[NUM_STRIDE_TABLE_ENTRIES];
 
 uint64_t present_time = 0;
 
+
+
+
 // ------------------------- Updating the signature ---------------------------- // 
 uint16_t update_sig_l1(uint16_t old_sig, int delta) {                           
     
+
     return (old_sig << 2 )^delta;
 }
 
 // ------------------- Updating confidence for the CPLX class ------------------ // 
 void update_state(STRIDE_TABLE*entry,uint64_t stride) {
 
-    uint16_t conf = entry->state;
+    uint64_t conf = entry->state;
 
     if(entry->stride == stride){
         conf++;
@@ -81,9 +85,8 @@ void update_state(STRIDE_TABLE*entry,uint64_t stride) {
             conf = MIN_STATE_REQ + 1;
     }
     else{
-        conf--;
-        if(conf < 0){
-            conf = 0;
+        if(conf > 0){
+            conf--;
         }
     }
 
@@ -143,6 +146,7 @@ IP_TABLE* find_tracker(uint64_t ip){
 // ------------------------- Initialize the prefetcher ------------------------- // 
 void CACHE::l1d_prefetcher_initialize() 
 {
+
 	cout << "CPU " << cpu << " L1D Complex-Stride prefetcher" << endl;
     
 }
@@ -162,7 +166,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
 
     uint64_t stride = cl_addr - tracker->cl_addr;
 
-    uint64_t signature =  update_sig_l1(tracker->signature,stride);
+    uint16_t signature =  update_sig_l1(tracker->signature,stride);
 
     STRIDE_TABLE*entry = find_entry(signature);
 
@@ -215,5 +219,6 @@ void CACHE::l1d_prefetcher_final_stats()
 {
 	cout << "CPU " << cpu << " L1D complex stride prefetcher final stats" << endl;
 	cout << "Degree: " << PREFETCH_DEGREE << endl;
+   
 }
 // ------------------------- DO NOT CHANGE -------------------------------- //

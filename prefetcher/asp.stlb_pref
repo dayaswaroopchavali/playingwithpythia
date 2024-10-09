@@ -1,24 +1,24 @@
 #include "cache.h"
 
 // ------------------------- DO NOT CHANGE -------------------------------- //
-#define IP_TRACKER_COUNT 64           // Number of IP trackers
+#define IP_TRACKER_ASP_COUNT 64           // Number of IP trackers
 // ------------------------- DO NOT CHANGE -------------------------------- //
 
 #define PREFETCH_DEGREE 5             // Prefetch degree - you need to vary this!
-#define MIN_STATE_REQ 2               // state at which it starts prefetching 
+#define MIN_STATE_REQ 1              // state at which it starts prefetching 
 
-class IP_TRACKER {
+class IP_TRACKER_ASP {
   public:
-    // ------------------------- Define the IP_TRACKER class here ------------------------- //
+    // ------------------------- Define the IP_TRACKER_ASP class here ------------------------- //
     public:
-    // ------------------------- Define the IP_TRACKER class here ------------------------- //
+    // ------------------------- Define the IP_TRACKER_ASP class here ------------------------- //
     uint64_t ip;
     uint64_t page_addr;
     uint64_t stride;
     uint64_t state;
     uint64_t last_time;
 
-    IP_TRACKER () {
+    IP_TRACKER_ASP () {
         ip = 0;
         page_addr = 0;
         stride = 0;
@@ -38,8 +38,8 @@ class IP_TRACKER {
 
 };
 
-IP_TRACKER trackers_table[IP_TRACKER_COUNT];
-int present_time = 0;
+IP_TRACKER_ASP trackers_table_asp[IP_TRACKER_ASP_COUNT];
+int present_time1 = 0;
 
 // ------------------------- Initialize the prefetcher ------------------------- // 
 void CACHE::stlb_prefetcher_initialize() 
@@ -49,7 +49,7 @@ void CACHE::stlb_prefetcher_initialize()
 }
 
 
-void update_state(IP_TRACKER*entry,uint64_t stride) {
+void update_state_asp(IP_TRACKER_ASP*entry,uint64_t stride) {
 
     uint16_t conf = entry->state;
 
@@ -59,9 +59,9 @@ void update_state(IP_TRACKER*entry,uint64_t stride) {
             conf = MIN_STATE_REQ + 1;
     }
     else{
-        conf--;
-        if(conf < 0){
-            conf = 0;
+        
+        if(conf > 0){
+            conf--;
         }
     }
 
@@ -72,26 +72,26 @@ void update_state(IP_TRACKER*entry,uint64_t stride) {
 
 }
 
-IP_TRACKER* find_tracker(uint64_t ip){
+IP_TRACKER_ASP* find_tracker_asp(uint64_t ip){
 
-    uint64_t min_time = trackers_table[0].last_time;
-    IP_TRACKER*tracker = trackers_table ;
+    uint64_t min_time = trackers_table_asp[0].last_time;
+    IP_TRACKER_ASP*tracker = trackers_table_asp ;
 
-    for( int i = 0 ; i < IP_TRACKER_COUNT ; i++ ){
+    for( int i = 0 ; i < IP_TRACKER_ASP_COUNT ; i++ ){
 
-        if( ip == trackers_table[i].ip){
-            trackers_table[i].last_time = present_time;
-            return trackers_table + i;
+        if( ip == trackers_table_asp[i].ip){
+            trackers_table_asp[i].last_time = present_time1;
+            return trackers_table_asp + i;
         }
 
-        if( min_time > trackers_table[i].last_time){
-            tracker = trackers_table + i;
-            min_time = trackers_table[i].last_time;
+        if( min_time > trackers_table_asp[i].last_time){
+            tracker = trackers_table_asp + i;
+            min_time = trackers_table_asp[i].last_time;
         }
 
     }
 
-    tracker->reinitialize(ip,present_time);
+    tracker->reinitialize(ip,present_time1);
     return tracker;
 }
 
@@ -101,18 +101,18 @@ IP_TRACKER* find_tracker(uint64_t ip){
 void CACHE::stlb_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint64_t prefetch_id, uint8_t instruction)
 {
     
-    present_time++;
+    present_time1++;
 
     if(cache_hit){
         return;
     }
 
-    IP_TRACKER*tracker = find_tracker(ip);
+    IP_TRACKER_ASP*tracker = find_tracker_asp(ip);
 
     uint64_t page_addr = addr >> LOG2_PAGE_SIZE;
     uint64_t stride = page_addr - tracker->page_addr;
 
-    update_state(tracker,stride);
+    update_state_asp(tracker,stride);
 
     if ( tracker->state >= MIN_STATE_REQ ){
 

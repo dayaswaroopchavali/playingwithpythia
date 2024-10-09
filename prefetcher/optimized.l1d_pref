@@ -1,4 +1,5 @@
 #include "cache.h"
+#include "ooo_cpu.h"
 
 // ------------------------- DO NOT CHANGE -------------------------------- //
 #define NUM_IP_TABLE_L1_ENTRIES 1024  // IP table entries
@@ -6,7 +7,7 @@
 #define PREFETCH_DEGREE 5             // Prefetch degree
 // ------------------------- DO NOT CHANGE -------------------------------- //
 
-#define PHASE_LENGTH 1                // Choose an appropriate phase length
+#define PHASE_LENGTH 10000                // Choose an appropriate phase length
 
 uint64_t num_prefs = 0;               // To keep a track of the number of prefetched lines
 
@@ -15,11 +16,21 @@ double accuracy_ip;
 double accuracy_cplx;
 double accuracy_nl;
 
+
+uint64_t NumRequests_IP_STRIDE = 0;
+uint64_t NumRequests_CPLX = 0;
+uint64_t NumRequests_Nextline = 0;
+
+uint64_t total_prefetches = 0;
+uint64_t useful_prefetches = 0;
+
+
 #define IP_STRIDE 1                   // IP-Stride Prefetcher
 #define CPLX 2                        // Complex-Stride Prefetcher
 #define NL 3                          // Next-line Prefetcher
 
 uint16_t prefetcher = IP_STRIDE;      // Start with the IP-Stride Prefetcher
+uint16_t final_prefetcher = IP_STRIDE;
 
 uint64_t present_time = 0;
 
@@ -28,7 +39,7 @@ uint64_t present_time = 0;
 #define IP_TRACKER_COUNT 64           // Number of IP trackers
 #define PREFETCH_DEGREE 5             // Prefetch degree
 
-#define MIN_STATE_REQ 2
+#define MIN_STATE_REQ 1
 
 class IP_TRACKER {
   public:
@@ -58,7 +69,7 @@ class IP_TRACKER {
 };
 
 
-IP_TRACKER trackers_table[IP_TRACKER_COUNT];
+IP_TRACKER trackers_table_ip[IP_TRACKER_COUNT];
 
 
 void update_state(IP_TRACKER*entry,uint64_t stride) {
@@ -71,9 +82,9 @@ void update_state(IP_TRACKER*entry,uint64_t stride) {
             conf = MIN_STATE_REQ + 1;
     }
     else{
-        conf--;
-        if(conf < 0){
-            conf = 0;
+        
+        if(conf > 0){
+            conf--;
         }
     }
 
@@ -84,21 +95,21 @@ void update_state(IP_TRACKER*entry,uint64_t stride) {
 
 }
 
-IP_TRACKER* find_tracker(uint64_t ip){
+IP_TRACKER* find_tracker1(uint64_t ip){
 
-    uint64_t min_time = trackers_table[0].last_time;
-    IP_TRACKER*tracker = trackers_table ;
+    uint64_t min_time = trackers_table_ip[0].last_time;
+    IP_TRACKER*tracker = trackers_table_ip ;
 
     for( int i = 0 ; i < IP_TRACKER_COUNT ; i++ ){
 
-        if( ip == trackers_table[i].ip){
-            trackers_table[i].last_time = present_time;
-            return trackers_table + i;
+        if( ip == trackers_table_ip[i].ip){
+            trackers_table_ip[i].last_time = present_time;
+            return trackers_table_ip + i;
         }
 
-        if( min_time > trackers_table[i].last_time){
-            tracker = trackers_table + i;
-            min_time = trackers_table[i].last_time;
+        if( min_time > trackers_table_ip[i].last_time){
+            tracker = trackers_table_ip + i;
+            min_time = trackers_table_ip[i].last_time;
         }
 
     }
@@ -168,7 +179,6 @@ class STRIDE_TABLE {
 IP_TABLE trackers_table[NUM_IP_TABLE_ENTRIES];
 STRIDE_TABLE stride_table[NUM_STRIDE_TABLE_ENTRIES];
 
-uint64_t present_time = 0;
 
 // ------------------------- Updating the signature ---------------------------- // 
 uint16_t update_sig_l1(uint16_t old_sig, int delta) {                           
@@ -187,9 +197,9 @@ void update_state(STRIDE_TABLE*entry,uint64_t stride) {
             conf = MIN_STATE_REQ + 1;
     }
     else{
-        conf--;
-        if(conf < 0){
-            conf = 0;
+        
+        if(conf > 0){
+            conf--;
         }
     }
 
@@ -265,8 +275,9 @@ IP_TABLE* find_tracker(uint64_t ip){
 void CACHE::l1d_prefetcher_initialize() 
 {
 	cout << "CPU " << cpu << " L1D Optimized prefetcher" << endl;
-    
 }
+
+uint16_t decided = 0,c1 = 0,c2 = 0,c3 = 0;
 
 // --------------- This is the main prefetcher operate function ---------------- // 
 void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint8_t critical_ip_flag)
@@ -275,20 +286,51 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
     present_time++;
 
 
-    
-
-
     if (warmup_complete[0] == 1) {
+        
+        if(NumRequests_IP_STRIDE < PHASE_LENGTH){
+
+            prefetcher = IP_STRIDE;
+        }
+        else if(NumRequests_CPLX  < PHASE_LENGTH){
+
+            prefetcher = CPLX;
+        }
+        else if( NumRequests_Nextline < PHASE_LENGTH){
+
+            prefetcher = NL;
+        }
+        else if ( decided == 0) {
+            
+            decided = 1;
+
+            if( accuracy_ip >= max( accuracy_cplx, accuracy_nl) )
+                final_prefetcher = IP_STRIDE;
+            else if ( accuracy_cplx >= max( accuracy_ip,accuracy_nl))
+                final_prefetcher = CPLX;
+            else
+                final_prefetcher = NL;
+
+            prefetcher= final_prefetcher;
+
+            cout<<" ----------------------------------"<<endl;
+            cout<<accuracy_ip<<" "<<accuracy_cplx<<" "<<accuracy_nl<<endl;
+            cout<<"prefetcehter = "<<prefetcher<<endl;
+            cout<<" ----------------------------------"<<endl;
+        }
+
+
         
         if (prefetcher == IP_STRIDE) {
             // IP-Stride Prefetcher
             
-            IP_TRACKER*tracker = find_tracker(ip);
+            IP_TRACKER*tracker = find_tracker1(ip);
             uint64_t stride = cl_addr - tracker->cl_addr;
 
             update_state(tracker,stride);
 
             if ( tracker->state >= MIN_STATE_REQ ){
+
 
                 for (int j = 1 ; j <= PREFETCH_DEGREE ; j++) {
 
@@ -298,6 +340,8 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
                     // as the current demand access address
 
                     if ((pf_address >> LOG2_PAGE_SIZE) == (addr >> LOG2_PAGE_SIZE)){
+
+                        NumRequests_IP_STRIDE++;
                         prefetch_line(ip,addr ,pf_address , FILL_L1 , 0);
                     }            
                 }
@@ -334,6 +378,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
                     // as the current demand access address
 
                     if ((pf_addr >> LOG2_PAGE_SIZE) == (addr >> LOG2_PAGE_SIZE)){
+                        NumRequests_CPLX++;
                         prefetch_line(ip,addr ,pf_addr , FILL_L1 , 0);
                     }
                 }
@@ -355,6 +400,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
             // Next-Line Prefetcher
             
             for (int i=0; i<PREFETCH_DEGREE; i++) {
+                
                 uint64_t cl_addr = addr >> LOG2_BLOCK_SIZE;
 
                 // ----------------------- Next-line logic ------------------------ // 
@@ -364,17 +410,53 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
                 // as the current demand access address
                 if ((pf_address >> LOG2_PAGE_SIZE) != (addr >> LOG2_PAGE_SIZE))
                     break;
-                    
+                
+                NumRequests_Nextline++;
                 prefetch_line(ip, addr, pf_address, FILL_L1, 0);
             }
 
         }
 
-
         else {
             assert(0);
         }
     
+    }
+
+    if( NumRequests_IP_STRIDE >= PHASE_LENGTH && c1 == 0){
+        
+        accuracy_ip = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches ); ///( ooo_cpu[0].L1D.pf_lower_level - total_prefetches);
+            
+        total_prefetches = ooo_cpu[0].L1D.pf_lower_level;
+        useful_prefetches = ooo_cpu[0].L1D.pf_useful;
+
+        cout<<total_prefetches<<" "<<useful_prefetches<<endl;
+
+        c1 = 1;
+    }
+
+    if( NumRequests_CPLX >= PHASE_LENGTH && c2 == 0){
+        
+        accuracy_cplx = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches ); ///( ooo_cpu[0].L1D.pf_lower_level - total_prefetches);
+            
+        total_prefetches = ooo_cpu[0].L1D.pf_lower_level;
+        useful_prefetches = ooo_cpu[0].L1D.pf_useful;
+
+        cout<<total_prefetches<<" "<<useful_prefetches<<endl;
+
+        c2 = 1;
+    }
+
+    if( NumRequests_Nextline >= PHASE_LENGTH && c3 == 0){
+        
+        accuracy_nl = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches ); ///( ooo_cpu[0].L1D.pf_lower_level - total_prefetches);
+            
+        total_prefetches = ooo_cpu[0].L1D.pf_lower_level;
+        useful_prefetches = ooo_cpu[0].L1D.pf_useful;
+
+        cout<<total_prefetches<<" "<<useful_prefetches<<endl;
+
+        c3 = 1;
     }
 
 	return;
