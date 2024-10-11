@@ -83,9 +83,10 @@ void update_state(IP_TRACKER*entry,uint64_t stride) {
     }
     else{
         
-        if(conf > 0){
+        
+        //if(conf > 0){
             conf--;
-        }
+        //}
     }
 
     entry->state = conf;
@@ -198,6 +199,8 @@ void update_state(STRIDE_TABLE*entry,uint64_t stride) {
     }
     else{
         
+        
+
         if(conf > 0){
             conf--;
         }
@@ -425,7 +428,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
 
     if( NumRequests_IP_STRIDE >= PHASE_LENGTH && c1 == 0){
         
-        accuracy_ip = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/(ooo_cpu[0].L1D.pf_lower_level -  total_prefetches );
+        accuracy_ip = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/PHASE_LENGTH;
             
         total_prefetches = ooo_cpu[0].L1D.pf_lower_level;
         useful_prefetches = ooo_cpu[0].L1D.pf_useful;
@@ -437,7 +440,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
 
     if( NumRequests_CPLX >= PHASE_LENGTH && c2 == 0 ){
         
-        accuracy_cplx = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/(ooo_cpu[0].L1D.pf_lower_level -  total_prefetches );
+        accuracy_cplx = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/PHASE_LENGTH ;
             
         total_prefetches = ooo_cpu[0].L1D.pf_lower_level;
         useful_prefetches = ooo_cpu[0].L1D.pf_useful;
@@ -449,7 +452,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
 
     if( NumRequests_Nextline >= PHASE_LENGTH && c3 == 0){
         
-        accuracy_nl = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/(ooo_cpu[0].L1D.pf_lower_level -  total_prefetches );
+        accuracy_nl = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/PHASE_LENGTH;
             
         total_prefetches = ooo_cpu[0].L1D.pf_lower_level;
         useful_prefetches = ooo_cpu[0].L1D.pf_useful;
