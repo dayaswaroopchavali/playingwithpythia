@@ -38,7 +38,7 @@ uint64_t present_time = 0;
 //--------------- IP_Stride code ----------------//
 
 #define IP_TRACKER_COUNT 64           // Number of IP trackers
-#define PREFETCH_DEGREE 5             // Prefetch degree
+
 
 #define MIN_STATE_REQ 1
 
