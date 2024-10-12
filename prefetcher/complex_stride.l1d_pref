@@ -15,7 +15,7 @@ class IP_TABLE {
     uint64_t ip;
     uint64_t cl_addr;                // last cl offset in the 4KB page 
     uint16_t signature;                     // CPLX signature
-    uint64_t last_time;
+    uint64_t last_time; 
  
 
     IP_TABLE () {
@@ -71,7 +71,7 @@ uint64_t present_time = 0;
 uint16_t update_sig_l1(uint16_t old_sig, int delta) {                           
     
 
-    return (old_sig << 2 )^delta;
+    return (old_sig << 3 )^delta;
 }
 
 // ------------------- Updating confidence for the CPLX class ------------------ // 

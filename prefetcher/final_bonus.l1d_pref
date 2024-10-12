@@ -7,7 +7,7 @@
 #define PREFETCH_DEGREE 5             // Prefetch degree
 // ------------------------- DO NOT CHANGE -------------------------------- //
 
-#define PHASE_LENGTH 10000                // Choose an appropriate phase length
+#define PHASE_LENGTH 30000                // Choose an appropriate phase length
 
 uint64_t num_prefs = 0;               // To keep a track of the number of prefetched lines
 
@@ -15,6 +15,7 @@ uint64_t num_prefs = 0;               // To keep a track of the number of prefet
 double accuracy_ip;
 double accuracy_cplx;
 double accuracy_nl;
+
 
 
 uint64_t NumRequests_IP_STRIDE = 0;
@@ -291,11 +292,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
 
     if (warmup_complete[0] == 1) {
         
-        if(c1 == 0){
-
-            prefetcher = IP_STRIDE;
-        }
-        else if(c2 == 0){
+        if(c2 == 0){
 
             prefetcher = CPLX;
         }
@@ -310,7 +307,7 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
             if( accuracy_ip >= max( accuracy_cplx, accuracy_nl) )
                 final_prefetcher = IP_STRIDE;
             else if ( accuracy_cplx >= max( accuracy_ip,accuracy_nl))
-                final_prefetcher = CPLX;
+                final_prefetcher = IP_STRIDE;
             else
                 final_prefetcher = NL;
 
@@ -426,19 +423,19 @@ void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit
     
     }
 
-    if( NumRequests_IP_STRIDE >= PHASE_LENGTH && c1 == 0){
+    // if( NumRequests_IP_STRIDE >= PHASE_LENGTH/5 && c1 == 0){
         
-        accuracy_ip = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/PHASE_LENGTH;
+    //     accuracy_ip = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/PHASE_LENGTH;
             
-        total_prefetches = ooo_cpu[0].L1D.pf_lower_level;
-        useful_prefetches = ooo_cpu[0].L1D.pf_useful;
+    //     total_prefetches = ooo_cpu[0].L1D.pf_lower_level;
+    //     useful_prefetches = ooo_cpu[0].L1D.pf_useful;
 
-        cout<<total_prefetches<<" "<<useful_prefetches<<endl;
+    //     cout<<total_prefetches<<" "<<useful_prefetches<<endl;
 
-        c1 = 1;
-    }
+    //     c1 = 1;
+    // }
 
-    if( NumRequests_CPLX >= PHASE_LENGTH && c2 == 0 ){
+    if( NumRequests_CPLX >= PHASE_LENGTH/2 && c2 == 0 ){
         
         accuracy_cplx = (double)(ooo_cpu[0].L1D.pf_useful -  useful_prefetches )/PHASE_LENGTH ;
             
