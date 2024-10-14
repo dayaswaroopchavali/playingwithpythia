@@ -71,7 +71,7 @@ uint64_t present_time = 0;
 uint16_t update_sig_l1(uint16_t old_sig, int delta) {                           
     
 
-    return (old_sig << 3 )^delta;
+    return (old_sig << 2 )^delta;
 }
 
 // ------------------- Updating confidence for the CPLX class ------------------ // 
