@@ -5,7 +5,7 @@
 #define PREFETCH_DEGREE 5             // Prefetch degree
 // ------------------------- DO NOT CHANGE -------------------------------- //
 
-#define MIN_STATE_REQ 2
+#define MIN_STATE_REQ 1
 
 class IP_TRACKER {
   public:
@@ -54,8 +54,8 @@ void update_state(IP_TRACKER*entry,uint64_t stride) {
 
     if(entry->stride == stride){
         conf++;
-        if(conf > MIN_STATE_REQ )
-            conf = MIN_STATE_REQ ;
+        if(conf > MIN_STATE_REQ+1 )
+            conf = MIN_STATE_REQ+1 ;
     }
     else{
         
