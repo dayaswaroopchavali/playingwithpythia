@@ -1,0 +1,241 @@
+#include "cache.h"
+#include <unordered_map>
+#include <queue>
+
+
+#define PREFETCH_DEGREE 5             // Prefetch degree
+#define EQTABLE_SIZE 200
+
+using  addr_type =  uint64_t;
+using action = int;
+
+
+int set_of_actions[] = {-6,-3,-1,0,1,3,4,5,10,11,12,16,22,23,30,32} ;
+
+
+int R_AT = 0 ; // Reward for prefetching accurate and timely requests
+int R_ANT = 0; //Rewards for prefecthing accurate but late requests
+int R_NPL = 0; // Reward for no prefetch in case of low bandwidth usage;
+int R_NPH = 0; // Reward for no prefectch in case of high bandwidth usage;
+int R_CL = 0; // Prefetch request which is out of page boundary
+int R_INL = 0; // reward for inaccurate prefetch in case of low bandwidth
+int R_INH = 0; // reward for inaccurate prefetch in case of high bandwidth
+
+struct state{
+    uint64_t pc;
+    std::deque<uint64_t> deltas;
+
+    bool operator=(const state& other) const{
+        return ( pc == other.pc && (deltas == ))
+    }
+};
+
+struct EQentry{
+
+    state s; // state at which this action is taken
+    int action; // Indicates the action taken
+    addr_type prefecthed_addr; //  Indicates the prefectched address
+    bool filled;  // Indicates that the prefetch action is filled or no
+    int reward; // reward assigned for this
+
+    EQentry( state s , int a , addr_type addr ) :
+        s(s) , action(a), prefecthed_addr(addr) { reward = 0 ;}
+    EQentry() {}
+};
+
+unordered_map<state,unordered_map<action,int>>QTable;
+
+
+double alpha = 0.2;
+double beta = 0.4;
+double gamma = 0.6;
+double epsilon = 0.02;
+
+
+std::queue<EQentry>EQtable;
+
+void CACHE::l1d_prefetcher_initialize() 
+{
+	cout << "CPU " << cpu << " L1D - Pythia Preftecher " << endl;
+
+    for(auto ite : QTable ){
+        state s = ite.first;
+        for(auto ite2 : QTable[s]){
+            action a = ite2.second;
+            QTable[s][a] = 1/(1-gamma);
+        }
+    }
+
+}
+
+void update_reward_EQentry(addr_type addr){
+    
+    int siz = EQtable.size();
+
+    for(int i = 0 ; i < siz ; i++ ){
+
+        EQentry e = EQtable.back();
+        EQtable.pop();
+
+        if(e.prefecthed_addr == addr ){
+
+            if( e.filled ){
+                e.reward = R_AT;
+            }
+            else{
+                e.reward = R_ANT;
+            }
+
+        }
+
+        EQtable.push(e);
+    }
+
+}
+
+void update_EQentry(addr_type addr){
+
+    int siz = EQtable.size();
+
+    for(int i = 0 ; i < siz ; i++ ){
+
+        EQentry e = EQtable.back();
+        EQtable.pop();
+
+        if(e.prefecthed_addr == addr ){
+            e.filled = true;
+        }
+
+        EQtable.push(e);
+    }
+}
+
+
+
+state make_state(uint64_t addr , uint64_t ip){
+
+}
+
+action best_action(state s ){
+
+}
+
+// Check if the prefetch address is within the same page
+bool is_within_page(uint64_t prefetch_addr, uint64_t addr) {
+    return ( prefetch_addr >> LOG2_PAGE_SIZE ) == ( addr >> LOG2_PAGE_SIZE ); 
+}
+
+action random_action(){
+
+    int num_actions = sizeof(set_of_actions)/sizeof(action);
+    return set_of_actions[rand()%num_actions];
+}
+
+addr_type caluclate_prefetch_addr(addr_type addr , int offset){
+
+    addr_type cl_addr = addr >> LOG2_BLOCK_SIZE;
+    return  ((cl_addr + offset) << LOG2_BLOCK_SIZE);
+
+}
+
+void apply_sarsa_update( EQentry & dq_entry){
+
+    int R = dq_entry.reward;
+
+    EQentry e= EQtable.front();
+
+    state s1 = dq_entry.s, s2 = e.s ;
+    action a1 = dq_entry.action , a2 = e.action ;
+
+    // Ensure Q-values are intialized
+
+
+
+    // sarsa update rule
+
+    QTable[s1][a1] = QTable[s1][a1] + alpha*(R + gamma*QTable[s2][a2] - QTable[s1][a1]);
+
+
+}
+
+
+void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type, uint8_t critical_ip_flag)
+{   
+    // for (int i=0; i<PREFETCH_DEGREE; i++) {
+    //     uint64_t cl_addr = addr >> LOG2_BLOCK_SIZE;
+
+    //     // ----------------------- Next-line logic ------------------------ // 
+    //     uint64_t pf_address = (cl_addr + ((i+1))) << LOG2_BLOCK_SIZE;
+
+    //     // only issue a prefetch if the prefetch address is in the same 4 KB page
+    //     // as the current demand access address
+    //     if ((pf_address >> LOG2_PAGE_SIZE) != (addr >> LOG2_PAGE_SIZE))
+    //         break;
+            
+    //     prefetch_line(ip, addr, pf_address, FILL_L1, 0);
+    // }
+
+    update_reward_EQentry(addr);
+    
+    state s = make_state(addr,ip);
+
+    action a =  ( rand() < epsilon*RAND_MAX ) ? random_action() : best_action(s);
+
+    addr_type prefetch_addr = caluclate_prefetch_addr(addr,a);
+
+    EQentry e(s,a,prefetch_addr);
+
+
+    if(a == 0 ){
+
+        if( /* Low Bandwidth usage */ true){
+            e.reward  = R_NPL;
+        }
+        else{
+            e.reward = R_NPH;
+        }
+
+    }
+    else if( !is_within_page(addr,prefetch_addr)){
+        e.reward = R_CL;
+    }
+
+
+    EQtable.push(e);
+
+
+    EQentry dq_entry = EQtable.back();
+    EQtable.pop();
+
+    if(dq_entry.reward == 0){
+
+        if( /* Low bandwith usage */ true){
+            dq_entry.reward = R_INL;
+        }
+        else{
+            dq_entry.reward = R_INH;
+        }
+
+    }
+
+    apply_sarsa_update(dq_entry);
+    
+    
+
+
+    return;
+}
+
+
+void CACHE::l1d_prefetcher_cache_fill(uint64_t v_addr, uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t v_evicted_addr, uint64_t evicted_addr, uint32_t metadata_in)
+{
+	
+    update_EQentry(addr); // mark the eq entry as filled
+    return;
+}
+
+void CACHE::l1d_prefetcher_final_stats()
+{
+	cout << "CPU " << cpu << " L1D nextline prefetcher final stats" << endl;
+	cout << "Degree: " << PREFETCH_DEGREE << endl;
+}
